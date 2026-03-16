@@ -5,6 +5,52 @@ import gspread
 from google.oauth2.service_account import Credentials
 import urllib.parse
 
+# --- LUXURY STYLING ---
+st.markdown("""
+    <style>
+    /* Main background and text */
+    .stApp {
+        background-color: #0E1117;
+        color: #C5A059;
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: #161B22;
+        border-right: 2px solid #C5A059;
+    }
+    
+    /* Headings */
+    h1, h2, h3 {
+        color: #D4AF37 !important;
+        font-family: 'Playfair Display', serif;
+    }
+    
+    /* Buttons */
+    div.stButton > button:first-child {
+        background-color: #D4AF37;
+        color: #000000;
+        border-radius: 20px;
+        border: none;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+    
+    div.stButton > button:hover {
+        background-color: #C5A059;
+        color: white;
+        box-shadow: 0 0 15px #D4AF37;
+    }
+
+    /* Input Boxes */
+    input, textarea {
+        background-color: #1C2128 !important;
+        color: #D4AF37 !important;
+        border: 1px solid #C5A059 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # --- 1. SECURE CONNECTION ---
 try:
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
