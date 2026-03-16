@@ -55,38 +55,40 @@ if app_mode == "📅 Client Booking":
                 st.warning("Please provide your name and phone number!")
 
 # --- TAB 2: SALON DASHBOARD ---
+# --- TAB 2: SALON DASHBOARD ---
 elif app_mode == "💇‍♂️ Salon Dashboard":
     st.title("👑 Salon Management Hub")
     
-    # 1. Fetch data from Google Sheets
-    data = ws_bookings.get_all_records()
-    if data:
-        df = pd.DataFrame(data)
+    # --- SAFE DATA LOADER ---
+    try:
+        # Get all data from the sheet
+        all_data = ws_bookings.get_all_values()
         
-        # 2. Metrics
-        pending_count = len(df[df['Status'] == 'Requested'])
-        st.metric("New Requests", pending_count)
-        
-        # 3. Booking Queue (Filter for Requested)
-        st.subheader("📥 Incoming Requests")
-        pending_df = df[df['Status'] == 'Requested']
-        
-        if not pending_df.empty:
-            st.dataframe(pending_df, use_container_width=True)
+        if len(all_data) > 1:  # Check if there is more than just the header row
+            df = pd.DataFrame(all_data[1:], columns=all_data[0])
             
-            # Action: Confirm a booking
-            selected_client = st.selectbox("Confirm booking for:", pending_df['Name'].tolist())
-            if st.button("✅ Confirm & Notify"):
-                # Find the row and update status to 'Confirmed'
-                cell = ws_bookings.find(selected_client)
-                # Assuming Status is the 6th column (F)
-                ws_bookings.update_cell(cell.row, 6, "Confirmed")
-                st.success(f"Confirmed {selected_client}!")
-                st.rerun()
+            # --- 2. Metrics ---
+            # Make sure 'Status' column exists before filtering
+            if 'Status' in df.columns:
+                pending_count = len(df[df['Status'] == 'Requested'])
+                st.metric("New Requests", pending_count)
+                
+                # --- 3. Booking Queue ---
+                st.subheader("📥 Incoming Requests")
+                pending_df = df[df['Status'] == 'Requested']
+                
+                if not pending_df.empty:
+                    st.dataframe(pending_df, use_container_width=True)
+                    # ... (rest of your confirmation button logic)
+                else:
+                    st.success("✅ All caught up! No pending requests.")
+            else:
+                st.error("❌ Column 'Status' not found in Google Sheet!")
         else:
-            st.write("No new requests. Relax!")
-
-    st.write("---")
+            st.info("📭 The booking queue is currently empty. Try booking an appointment in Client Mode!")
+            
+    except Exception as e:
+        st.error(f"⚠️ Error reading records: {e}")
     
     # 4. Service Log (Internal Record Keeping)
     st.subheader("📝 Complete Service Log")
