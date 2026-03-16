@@ -5,48 +5,56 @@ import gspread
 from google.oauth2.service_account import Credentials
 import urllib.parse
 
-# --- LUXURY STYLING ---
+# --- LIGHT & PLEASANT STYLING ---
 st.markdown("""
     <style>
     /* Main background and text */
     .stApp {
-        background-color: #0E1117;
-        color: #C5A059;
+        background-color: #FAFAFA;
+        color: #4A4A4A;
     }
     
     /* Sidebar styling */
     [data-testid="stSidebar"] {
-        background-color: #161B22;
-        border-right: 2px solid #C5A059;
+        background-color: #FFFFFF;
+        border-right: 1px solid #E0E0E0;
     }
     
     /* Headings */
     h1, h2, h3 {
-        color: #D4AF37 !important;
-        font-family: 'Playfair Display', serif;
+        color: #5F7A61 !important; /* Sage Green */
+        font-family: 'Helvetica Neue', sans-serif;
+        font-weight: 300;
     }
     
     /* Buttons */
     div.stButton > button:first-child {
-        background-color: #D4AF37;
-        color: #000000;
-        border-radius: 20px;
+        background-color: #8DA47E;
+        color: white;
+        border-radius: 8px;
         border: none;
-        font-weight: bold;
+        padding: 0.5rem 2rem;
         transition: 0.3s;
     }
     
     div.stButton > button:hover {
-        background-color: #C5A059;
+        background-color: #5F7A61;
+        border: none;
         color: white;
-        box-shadow: 0 0 15px #D4AF37;
     }
 
     /* Input Boxes */
     input, textarea {
-        background-color: #1C2128 !important;
-        color: #D4AF37 !important;
-        border: 1px solid #C5A059 !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #D1D1D1 !important;
+        border-radius: 5px !important;
+    }
+
+    /* Success Messages */
+    .stAlert {
+        background-color: #EDF1EC;
+        color: #5F7A61;
+        border: none;
     }
     </style>
     """, unsafe_allow_html=True)
