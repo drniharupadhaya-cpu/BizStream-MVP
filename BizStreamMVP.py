@@ -3,88 +3,86 @@ import pandas as pd
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+import urllib.parse
 
 # --- 1. SECURE CONNECTION ---
-# This assumes you have your streamlit secrets set up
 try:
-    # Replace 'BizStream-MVP' with the exact name of your Google Sheet
-    # Ensure the Google Service Account email is shared with the sheet!
-    sheet_name = "BizStream-MVP"
-    
-    # We use gspread logic similar to your RBSK app
-    from google.oauth2.service_account import Credentials
-    import gspread
-
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
     client = gspread.authorize(creds)
-    spreadsheet = client.open(sheet_name)
-    
+    spreadsheet = client.open("BizStream-MVP")
     ws_bookings = spreadsheet.worksheet("salon_bookings")
     ws_services = spreadsheet.worksheet("salon_services")
-    
 except Exception as e:
     st.error(f"⚠️ Connection Error: {e}")
 
-# --- 2. SIDEBAR NAVIGATION ---
+# --- 2. WHATSAPP LOGIC ---
+def get_wa_link(phone, name, time, service):
+    clean_phone = ''.join(filter(str.isdigit, phone))
+    if not clean_phone.startswith('91'): clean_phone = '91' + clean_phone
+    msg = f"Hello {name}, this is Style & Shine Salon! ✨ Confirming your {service} for {time}. See you then!"
+    return f"https://wa.me/{clean_phone}?text={urllib.parse.quote(msg)}"
+
+# --- 3. NAVIGATION ---
 app_mode = st.sidebar.selectbox("Choose Mode", ["📅 Client Booking", "💇‍♂️ Salon Dashboard"])
 
 # --- TAB 1: CLIENT BOOKING ---
 if app_mode == "📅 Client Booking":
     st.title("✂️ Style & Shine Salon")
-    st.markdown("### Book Your Transformation")
-
     with st.form("booking_form", clear_on_submit=True):
         name = st.text_input("Full Name")
         phone = st.text_input("Mobile Number")
-        service = st.selectbox("Service Desired", ["Haircut", "Hair Color", "Facial", "Shaving/Beard"])
-        date = st.date_input("Preferred Date", min_value=datetime.today())
-        time_slot = st.selectbox("Preferred Time", ["10 AM", "11 AM", "12 PM", "1 PM", "3 PM", "4 PM", "5 PM", "6 PM"])
-        
-        submit = st.form_submit_button("Request Appointment")
-
-        if submit:
+        service = st.selectbox("Service", ["Haircut", "Hair Color", "Facial", "Beard Trim"])
+        date = st.date_input("Date", min_value=datetime.today())
+        time = st.selectbox("Time", ["10 AM", "11 AM", "12 PM", "2 PM", "4 PM", "6 PM"])
+        if st.form_submit_button("Request Appointment"):
             if name and phone:
-                # Add to 'salon_bookings' tab
-                # Column structure: Date, Name, Phone, Service, Time, Status
-                new_row = [str(date), name, phone, service, time_slot, "Requested"]
-                ws_bookings.append_row(new_row)
+                ws_bookings.append_row([str(date), name, phone, service, time, "Requested"])
                 st.balloons()
-                st.success(f"Perfect, {name}! We've received your request for {time_slot}. Hang tight!")
-            else:
-                st.warning("Please provide your name and phone number!")
+                st.success("Request Sent! We will contact you shortly.")
 
+# --- TAB 2: SALON DASHBOARD ---
 elif app_mode == "💇‍♂️ Salon Dashboard":
-    st.title("👑 Salon Management Hub")
+    st.title("👑 Salon Command Center")
     
-    try:
-        # 1. Fetch the raw headers directly from Row 1
-        headers = ws_bookings.row_values(1)
+    # --- LOAD DATA ---
+    all_rows = ws_bookings.get_all_values()
+    if len(all_rows) > 1:
+        df = pd.DataFrame(all_rows[1:], columns=all_rows[0])
+        df.columns = [c.strip() for c in df.columns] # Clean hidden spaces
         
-        # 2. DEBUG: Show us exactly what Python sees
-        st.write("🔍 **Deep Scan Results:**")
-        st.write(f"The computer sees these columns: `{headers}`")
+        pending = df[df['Status'] == 'Requested']
         
-        # 3. Check for the word 'Status'
-        if "Status" in headers:
-            st.success("✅ Match Found! 'Status' is present.")
+        col1, col2 = st.columns(2)
+        col1.metric("Pending Requests", len(pending))
+        
+        st.subheader("📥 New Requests")
+        if not pending.empty:
+            st.dataframe(pending, use_container_width=True)
+            
+            # --- ACTION AREA ---
+            with st.expander("✅ Process Appointment"):
+                client_to_fix = st.selectbox("Select Client", pending['Name'].tolist())
+                client_data = pending[pending['Name'] == client_to_fix].iloc[0]
+                
+                # WhatsApp Button
+                wa_url = get_wa_link(client_data['Phone'], client_data['Name'], client_data['Time'], client_data['Service'])
+                st.link_button(f"💬 WhatsApp {client_to_fix}", wa_url)
+                
+                if st.button(f"Mark {client_to_fix} as Confirmed"):
+                    cell = ws_bookings.find(client_to_fix)
+                    ws_bookings.update_cell(cell.row, 6, "Confirmed")
+                    st.success("Status Updated!")
+                    st.rerun()
         else:
-            st.error("❌ Match Not Found!")
-            # Show the "Ghost" - This shows if there are hidden spaces
-            for h in headers:
-                st.code(f"Column: '{h}' | Length: {len(h)}")
-
-    except Exception as e:
-        st.error(f"Error: {e}")
+            st.write("No new requests.")
     
-    # 4. Service Log (Internal Record Keeping)
-    st.subheader("📝 Complete Service Log")
-    with st.form("service_log"):
-        c_name = st.text_input("Client Name (Searchable later)")
-        formula = st.text_area("Color Formula / Notes")
-        price = st.number_input("Amount Collected (₹)", min_value=0)
-        log_submit = st.form_submit_button("Save Records")
-        
-        if log_submit:
+    st.divider()
+    st.subheader("📝 Service Log (Formulas & Payments)")
+    with st.form("service_log", clear_on_submit=True):
+        c_name = st.text_input("Client Name")
+        formula = st.text_area("Formula/Notes")
+        price = st.number_input("Amount (₹)", min_value=0)
+        if st.form_submit_button("Save Service Record"):
             ws_services.append_row([str(datetime.now().date()), c_name, formula, price])
-            st.success("Record saved safely.")
+            st.success("Record saved!")
