@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from gspread_pandas import Spread, Client
+import gspread
+from google.oauth2.service_account import Credentials
 
 # --- 1. SECURE CONNECTION ---
 # This assumes you have your streamlit secrets set up
