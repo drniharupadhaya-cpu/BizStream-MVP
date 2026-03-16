@@ -54,41 +54,28 @@ if app_mode == "📅 Client Booking":
             else:
                 st.warning("Please provide your name and phone number!")
 
-# --- TAB 2: SALON DASHBOARD ---
-# --- TAB 2: SALON DASHBOARD ---
 elif app_mode == "💇‍♂️ Salon Dashboard":
     st.title("👑 Salon Management Hub")
     
-    # --- SAFE DATA LOADER ---
     try:
-        # Get all data from the sheet
-        all_data = ws_bookings.get_all_values()
+        # 1. Fetch the raw headers directly from Row 1
+        headers = ws_bookings.row_values(1)
         
-        if len(all_data) > 1:  # Check if there is more than just the header row
-            df = pd.DataFrame(all_data[1:], columns=all_data[0])
-            
-            # --- 2. Metrics ---
-            # Make sure 'Status' column exists before filtering
-            if 'Status' in df.columns:
-                pending_count = len(df[df['Status'] == 'Requested'])
-                st.metric("New Requests", pending_count)
-                
-                # --- 3. Booking Queue ---
-                st.subheader("📥 Incoming Requests")
-                pending_df = df[df['Status'] == 'Requested']
-                
-                if not pending_df.empty:
-                    st.dataframe(pending_df, use_container_width=True)
-                    # ... (rest of your confirmation button logic)
-                else:
-                    st.success("✅ All caught up! No pending requests.")
-            else:
-                st.error("❌ Column 'Status' not found in Google Sheet!")
+        # 2. DEBUG: Show us exactly what Python sees
+        st.write("🔍 **Deep Scan Results:**")
+        st.write(f"The computer sees these columns: `{headers}`")
+        
+        # 3. Check for the word 'Status'
+        if "Status" in headers:
+            st.success("✅ Match Found! 'Status' is present.")
         else:
-            st.info("📭 The booking queue is currently empty. Try booking an appointment in Client Mode!")
-            
+            st.error("❌ Match Not Found!")
+            # Show the "Ghost" - This shows if there are hidden spaces
+            for h in headers:
+                st.code(f"Column: '{h}' | Length: {len(h)}")
+
     except Exception as e:
-        st.error(f"⚠️ Error reading records: {e}")
+        st.error(f"Error: {e}")
     
     # 4. Service Log (Internal Record Keeping)
     st.subheader("📝 Complete Service Log")
