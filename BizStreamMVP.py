@@ -1,82 +1,100 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from gspread_pandas import Spread, Client
 
-# --- APP SETTINGS ---
-st.set_page_config(page_title="Style & Shine Salon Hub", layout="wide")
+# --- 1. SECURE CONNECTION ---
+# This assumes you have your streamlit secrets set up
+try:
+    # Replace 'BizStream-MVP' with the exact name of your Google Sheet
+    # Ensure the Google Service Account email is shared with the sheet!
+    sheet_name = "BizStream-MVP"
+    
+    # We use gspread logic similar to your RBSK app
+    from google.oauth2.service_account import Credentials
+    import gspread
 
-# 1. THE MODE SWITCHER (The Secret to a 2-in-1 App)
-# In a real scenario, the owner would have a password to access the 'Salon Dashboard'
+    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+    client = gspread.authorize(creds)
+    spreadsheet = client.open(sheet_name)
+    
+    ws_bookings = spreadsheet.worksheet("salon_bookings")
+    ws_services = spreadsheet.worksheet("salon_services")
+    
+except Exception as e:
+    st.error(f"⚠️ Connection Error: {e}")
+
+# --- 2. SIDEBAR NAVIGATION ---
 app_mode = st.sidebar.selectbox("Choose Mode", ["📅 Client Booking", "💇‍♂️ Salon Dashboard"])
 
-# --- TAB 1: CLIENT BOOKING MODE ---
+# --- TAB 1: CLIENT BOOKING ---
 if app_mode == "📅 Client Booking":
     st.title("✂️ Style & Shine Salon")
     st.markdown("### Book Your Transformation")
-    st.info("Pick a slot, and we'll confirm your appointment within 15 minutes!")
 
-    with st.form("public_booking_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            name = st.text_input("Full Name")
-            phone = st.text_input("Mobile Number")
-        with col2:
-            service = st.selectbox("Service Desired", ["Haircut", "Hair Color", "Facial", "Shaving/Beard"])
-            date = st.date_input("Preferred Date", min_value=datetime.today())
-        
-        time_slot = st.select_slider("Preferred Time", options=["10 AM", "11 AM", "12 PM", "1 PM", "3 PM", "4 PM", "5 PM", "6 PM"])
+    with st.form("booking_form", clear_on_submit=True):
+        name = st.text_input("Full Name")
+        phone = st.text_input("Mobile Number")
+        service = st.selectbox("Service Desired", ["Haircut", "Hair Color", "Facial", "Shaving/Beard"])
+        date = st.date_input("Preferred Date", min_value=datetime.today())
+        time_slot = st.selectbox("Preferred Time", ["10 AM", "11 AM", "12 PM", "1 PM", "3 PM", "4 PM", "5 PM", "6 PM"])
         
         submit = st.form_submit_button("Request Appointment")
 
         if submit:
             if name and phone:
-                # DATA PACKET: Status starts as 'Requested'
-                # new_row = [str(date), name, phone, service, time_slot, "Requested"]
-                # ws_bookings.append_row(new_row)
+                # Add to 'salon_bookings' tab
+                # Column structure: Date, Name, Phone, Service, Time, Status
+                new_row = [str(date), name, phone, service, time_slot, "Requested"]
+                ws_bookings.append_row(new_row)
                 st.balloons()
                 st.success(f"Perfect, {name}! We've received your request for {time_slot}. Hang tight!")
             else:
-                st.warning("Please provide your name and phone number so we can call you!")
+                st.warning("Please provide your name and phone number!")
 
-# --- TAB 2: SALON DASHBOARD (OWNER ONLY) ---
+# --- TAB 2: SALON DASHBOARD ---
 elif app_mode == "💇‍♂️ Salon Dashboard":
-    st.title("👑 Salon Management Command Center")
+    st.title("👑 Salon Management Hub")
     
-    # METRICS SECTION (The 'Wow' Factor for the owner)
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Today's Appointments", "8")
-    m2.metric("Pending Requests", "3", delta_color="inverse")
-    m3.metric("Estimated Revenue", "₹4,500")
+    # 1. Fetch data from Google Sheets
+    data = ws_bookings.get_all_records()
+    if data:
+        df = pd.DataFrame(data)
+        
+        # 2. Metrics
+        pending_count = len(df[df['Status'] == 'Requested'])
+        st.metric("New Requests", pending_count)
+        
+        # 3. Booking Queue (Filter for Requested)
+        st.subheader("📥 Incoming Requests")
+        pending_df = df[df['Status'] == 'Requested']
+        
+        if not pending_df.empty:
+            st.dataframe(pending_df, use_container_width=True)
+            
+            # Action: Confirm a booking
+            selected_client = st.selectbox("Confirm booking for:", pending_df['Name'].tolist())
+            if st.button("✅ Confirm & Notify"):
+                # Find the row and update status to 'Confirmed'
+                cell = ws_bookings.find(selected_client)
+                # Assuming Status is the 6th column (F)
+                ws_bookings.update_cell(cell.row, 6, "Confirmed")
+                st.success(f"Confirmed {selected_client}!")
+                st.rerun()
+        else:
+            st.write("No new requests. Relax!")
 
     st.write("---")
     
-    # PENDING REQUESTS QUEUE (Reuse your Module 14 Logic!)
-    st.subheader("📥 New Booking Requests")
-    # Here you would load data from the 'salon_bookings' sheet
-    # Show only where Status == 'Requested'
-    st.write("Check these requests and call the clients to confirm.")
-    
-    # EXAMPLE DATA TABLE
-    data = {
-        "Client": ["Rahul V.", "Sneha M."],
-        "Service": ["Haircut", "Facial"],
-        "Time": ["3 PM", "5 PM"],
-        "Status": ["Requested", "Requested"]
-    }
-    df = pd.DataFrame(data)
-    st.table(df)
-    
-    if st.button("Confirm Next Appointment"):
-        st.write("UPDATING DATABASE: Status changed to 'Confirmed' ✅")
-        st.rerun()
-
-    st.write("---")
-    
-    # THE SERVICE LOG (For Stylists to log Chemical Formulas)
-    st.subheader("📝 Daily Service Log")
-    with st.expander("Click to log a completed service"):
-        # Just like your RBSK screening form
-        st.text_input("Client Name")
-        st.text_area("Color Formula / Notes (e.g. L'Oreal Shade 5.1 + 6% Dev)")
-        st.number_input("Amount Collected", min_value=0)
-        st.button("Save Entry")
+    # 4. Service Log (Internal Record Keeping)
+    st.subheader("📝 Complete Service Log")
+    with st.form("service_log"):
+        c_name = st.text_input("Client Name (Searchable later)")
+        formula = st.text_area("Color Formula / Notes")
+        price = st.number_input("Amount Collected (₹)", min_value=0)
+        log_submit = st.form_submit_button("Save Records")
+        
+        if log_submit:
+            ws_services.append_row([str(datetime.now().date()), c_name, formula, price])
+            st.success("Record saved safely.")
