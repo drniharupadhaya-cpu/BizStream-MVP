@@ -140,3 +140,36 @@ elif app_mode == "💇‍♂️ Salon Dashboard":
         if st.form_submit_button("Save Service Record"):
             ws_services.append_row([str(datetime.now().date()), c_name, formula, price])
             st.success("Record saved!")
+    # --- REVENUE ANALYTICS SECTION ---
+st.divider()
+st.subheader("📈 Business Growth (Last 7 Days)")
+
+try:
+    # Fetch data from the services tab
+    service_data = ws_services.get_all_values()
+    
+    if len(service_data) > 1:
+        rev_df = pd.DataFrame(service_data[1:], columns=service_data[0])
+        rev_df.columns = [c.strip() for c in rev_df.columns]
+        
+        # Convert Price to numeric and Date to datetime
+        rev_df['Price'] = pd.to_numeric(rev_df['Price'], errors='coerce').fillna(0)
+        rev_df['Date'] = pd.to_datetime(rev_df['Date']).dt.date
+        
+        # Group by date and sum the prices
+        daily_rev = rev_df.groupby('Date')['Price'].sum().reset_index()
+        
+        # Sort by date and take the last 7 entries
+        daily_rev = daily_rev.sort_values('Date').tail(7)
+        
+        # Display the Chart
+        st.line_chart(data=daily_rev, x='Date', y='Price', color="#8DA47E")
+        
+        # Quick Stat
+        total_7_days = daily_rev['Price'].sum()
+        st.write(f"✨ **Total Revenue (Past 7 Records):** ₹{total_7_days:,.2f}")
+    else:
+        st.info("Log some services below to see your revenue chart grow!")
+
+except Exception as e:
+    st.info("Start logging services to see your revenue analytics.")
